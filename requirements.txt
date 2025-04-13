@@ -1,0 +1,9 @@
+pywinauto
+pyperclip
+pyautogui
+xlrd
+wxauto
+coloredlogs
+keyboard
+pySide6
+yaml

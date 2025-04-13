@@ -1,0 +1,34 @@
+wechat_user:
+  - 文件传输助手
+
+paths:
+  search_icon: 'imgs/search_icon.png'
+  zbd: 'imgs/zbd.png'
+  queding: 'imgs/queding.png'
+  fahuodanhao: 'imgs/fahuodanhao.png'
+  zero: 'imgs/zero.png'
+  zero2: 'imgs/zero2.png'
+  cunliang: 'imgs/cunliang.png'
+  shuaxincunliang: 'imgs/shuaxincunliang.png'
+  buzaitanchu: 'imgs/buzaitanchu.png'
+  quedingdayin: 'imgs/quedingdayin.png'
+  dayin: 'imgs/dayin.png'
+  buneng: 'imgs/buneng.png'
+  jianshu: 'imgs/jianshu.png'
+  denglu: 'imgs/denglu.png'
+  baocungeshi: 'imgs/baocungeshi.png'
+  zhixiang: 'imgs/zhixiang.png'
+  fahuodan: 'imgs/fahuodan.png'
+  print: 'imgs/print.png'
+
+base:
+  remote_win_name: 'ufo.xiejin.com:2012 - 远程桌面连接' # 远程桌面的名称
+  notify_user: '初代' # 单据不能打印提示人
+  sleep_time: 2 # 处理完一个单据后的等待时间
+  file_base_path: '' # 默认为应用当前目录 ex: D:\\path\\to
+  log_path: '日志'
+  pending_path: '单据数据'
+  pending_file_name: '待处理.csv'
+  processed_path: '单据数据'
+  processed_file_name: '已处理.csv'
+  base_result_dir: '处理结果'
