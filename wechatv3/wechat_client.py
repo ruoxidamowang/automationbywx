@@ -59,6 +59,9 @@ class WeChatListener:
                 if match in self.msg_queue:
                     self.logger.info(f"匹配到单号: [{match}] 已在待处理，跳过")
                     continue
+                if match in list(item[0] for item in self.finished_data):
+                    self.logger.info(f"匹配到单号: [{match}] 单据已处理过，跳过")
+                    continue
                 line = self._add_pending_msg(match, msg)
 
                 self.logger.info(f"已保存 {line.strip()}")

@@ -38,7 +38,7 @@ class ProcessResult:
         return self.status == '已完成'
 
     def __str__(self):
-        return f"[{self.status}] {self.reason}"
+        return f"[{self.status.value}] {self.reason}"
 
 
 class InvoiceProcessor:
@@ -119,7 +119,7 @@ class InvoiceProcessor:
                 f"单据类型: {doc_type}\n"
                 f"处理开始时间: {now}\n"
                 f"处理时长: {duration} 秒\n"
-                f"状态: {result.status}\n"
+                f"状态: {result.status.value}\n"
                 f"备注信息: {result.reason}\n"
                 f"源消息: {raw_message}\n"
             )
@@ -146,13 +146,13 @@ class InvoiceProcessor:
                 writer.writerows(remaining)
 
             self.save_processed(invoice_id=invoice_id, doc_type=doc_type, sender=sender, raw_msg=raw_message,
-                                status=result.status, reason=result.reason)
+                                status=result.status.value, reason=result.reason)
 
             self.invoice_logger.info(f"操作完成: {invoice_id}")
             log_message(f"操作完成: {invoice_id}")
         except Exception as e:
             self.save_processed(invoice_id=invoice_id, doc_type=doc_type, sender=sender, raw_msg=raw_message,
-                                status=result.status, reason=result.reason)
+                                status=result.status.value, reason=result.reason)
             self.invoice_logger.error(f"单据操作失败: {invoice_id}，{e}")
             log_message(f"单据操作失败: {invoice_id}，{e}")
         finally:
@@ -293,8 +293,8 @@ class InvoiceAutomationWorker:
                 return ProcessResult.fail(msg)
 
             # 找到是否为0 为0则可以打印
-            zero_location = from_path('zero')
-            zero2_location = from_path('zero2')
+            zero_location = from_path('zero', confidence=0.84)
+            zero2_location = from_path('zero2', confidence=0.84)
             if zero_location is None and zero2_location is None:
                 log.info(f'跳过，单据左下角不为0')
                 log_message(f'跳过，单据[{invoice_id}]左下角不为0')
