@@ -270,7 +270,7 @@ class InvoiceAutomationWorker:
             pyautogui.keyDown('backspace')
             time.sleep(3)
             pyautogui.keyUp('backspace')
-            pyautogui.write(invoice_id, 0.1)  # 输入单号
+            pyautogui.write(invoice_id, 0.15)  # 输入单号
             pyautogui.press('enter')
 
             # 提示找不到则直接返回并记录
@@ -381,7 +381,7 @@ class InvoiceAutomationWorker:
             if dayin_location is not None:
                 pyautogui.moveTo(dayin_location.x, dayin_location.y)
                 # 打印
-                # pyautogui.click(dayin_location.x, dayin_location.y)
+                pyautogui.click(dayin_location.x, dayin_location.y)
                 # 循环等待打印窗口消失后再继续
                 while True:
                     dayin_location = from_path('dayin')

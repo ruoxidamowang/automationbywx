@@ -61,7 +61,7 @@ class AppController:
 
         ctk.CTkButton(
             self.root,
-            text="查看当前待处理",
+            text="查看当前待处理 (Ctrl+N)",
             font=("Arial", 12),
             command=self.show_queue
         ).grid(row=2, column=12, columnspan=11, padx=(5,10), pady=5, sticky="ew")
@@ -100,7 +100,8 @@ class AppController:
 
     def _start_hotkey(self):
         keyboard.add_hotkey('ctrl+k', lambda: self.root.after(0, self.toggle_pause) or None)
-        log_message("热键已启动，按 Ctrl+K 切换暂停和恢复")
+        keyboard.add_hotkey('ctrl+n', lambda: self.root.after(0, self.show_queue) or None)
+        log_message("热键已启动，按 Ctrl+K 切换暂停和恢复，按 Ctrl+N 查看当前待处理单据")
 
     def _safe_gui_update(self, func, *args):
         """线程安全的GUI更新方法"""

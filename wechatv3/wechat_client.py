@@ -131,6 +131,7 @@ class WeChatListener:
             for chat in msgs:
                 for msg in msgs.get(chat, []):
                     matches = self._pattern.findall(msg.content)
+                    self.logger.info(f"接收到微信消息: {msg.sender} {msg.content}")
                     for match in matches:
                         if match in self.msg_queue:
                             self.logger.info(f"匹配到单号: [{match}] 已在待处理，跳过")
