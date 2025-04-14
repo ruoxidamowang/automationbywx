@@ -19,6 +19,7 @@ class WeChatListener:
         self.msg_queue = msg_queue
         self.logger = logger_manager.get_logger()
         self._pattern = re.compile(r"(FHD\d{8})")
+        self.finished_data = WeChatListener._init_finished_data()
         self._init_wechat()
 
     def _init_history_msg(self, who: str, find_str: str):
@@ -30,34 +31,51 @@ class WeChatListener:
 
         self._wx.ChatWith(who, timeout=30)
 
-        # 限制最多加载的次数，避免死循环
-        max_scroll_times = 20
-        scroll_count = 0
+        def _get_history():
+            # 限制最多加载的次数，避免死循环
+            max_scroll_times = 20
+            scroll_count = 0
 
-        while scroll_count < max_scroll_times:
-            if scroll_count > 0:
-                self._wx.LoadMoreMessage()
-            msgs = self._wx.GetAllMessage()
+            while scroll_count < max_scroll_times:
+                if scroll_count > 0:
+                    self._wx.LoadMoreMessage()
+                in_msgs = self._wx.GetAllMessage()
 
-            for msg in reversed(msgs):
-                matches = self._pattern.findall(msg.content)
-                for match in matches:
-                    if match not in seen:
-                        seen.add(match)
-                        history.append(match)
-                    if find_str in match:
-                        self.logger.info(f"符合的历史单据: {history}")
-                        return history[:-1]
+                for in_msg in reversed(in_msgs):
+                    in_matches = self._pattern.findall(in_msg.content)
+                    for in_match in in_matches:
+                        if find_str == in_match:
+                            self.logger.info(f"符合的历史单据: {history}")
+                            return history
+                        if in_match not in seen:
+                            seen.add(in_match)
+                            history.append(in_msg)
 
-            scroll_count += 1
-            time.sleep(1)  # 等微信加载
+                scroll_count += 1
+                time.sleep(1)  # 等微信加载
+        for msg in _get_history():
+            matches = self._pattern.findall(msg.content)
+            for match in matches:
+                if match in self.msg_queue:
+                    self.logger.info(f"匹配到单号: [{match}] 已在待处理，跳过")
+                    continue
+                line = self._add_pending_msg(match, msg)
 
-        # 没找到就返回空列表
-        return []
+                self.logger.info(f"已保存 {line.strip()}")
+                log_message(f"已保存 {line.strip()}")
+
+    @staticmethod
+    def _init_finished_data() -> list[any]:
+        # 读取已处理的第一条
+        processed_file = os.path.join(get_config().base.processed_path, get_config().base.processed_file_name)
+        with open(processed_file, 'r', encoding='utf-8-sig') as f:
+            reader = csv.reader(f)
+            next(reader, None)
+            rows = [row for row in reader if row and any(field.strip() for field in row)]
+            return rows
 
     # 获取最后处理的单号
-    @staticmethod
-    def _get_last_no()-> str:
+    def _get_last_no(self) -> str:
         # 读取待处理的最后一条
         pending_file = os.path.join(get_config().base.pending_path, get_config().base.pending_file_name)
         with open(pending_file, 'r', encoding='utf-8-sig') as f:
@@ -68,12 +86,9 @@ class WeChatListener:
                     return row[0]
 
         # 读取已处理的第一条
-        processed_file = os.path.join(get_config().base.processed_path, get_config().base.processed_file_name)
-        with open(processed_file, 'r', encoding='utf-8-sig') as f:
-            reader = csv.reader(f)
-            for row in reversed(reader[1:]):
-                if row and row[0].strip():  # 确保这一行存在并且第一个字段不为空
-                    return row[0]
+        for row in reversed(self.finished_data):
+            if row and row[0].strip():  # 确保这一行存在并且第一个字段不为空
+                return row[0]
         return ''
 
     def _init_wechat(self):
@@ -81,6 +96,12 @@ class WeChatListener:
             if self._wx is None:
                 self._wx = WeChat()
                 self._wx.GetSessionList()
+                last_no = self._get_last_no()
+                self.logger.info(f"最后处理的单据号: {last_no}")
+                for name in get_config().wechat_user:
+                    self._init_history_msg(name, last_no)
+                log_message("已添加未处理历史消息")
+                self._init_listener()
         except Exception as e:
             log_message("初始化微信失败，请确定微信已启动")
             raise e
@@ -114,16 +135,10 @@ class WeChatListener:
                         if match in self.msg_queue:
                             self.logger.info(f"匹配到单号: [{match}] 已在待处理，跳过")
                             continue
-                        doc_type = "退货单" if "退货单" in msg.content else "发货单"
-                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        contact = '自己' if msg.sender == 'Self' else msg.sender
-                        raw_msg = msg.content.replace('\n', ' ').replace(',', '，').strip()
-                        line = f"{match},{doc_type},{timestamp},{contact},{raw_msg}\n"
-
-                        pending_file = os.path.join(get_config().base.pending_path, get_config().base.pending_file_name)
-                        with open(pending_file, "a", encoding="utf-8") as f:
-                            f.write(line)
-                        self.msg_queue.put(match)
+                        if match in list(item[0] for item in self.finished_data):
+                            self.logger.info(f"匹配到单号: [{match}] 单据已处理过，跳过")
+                            continue
+                        line = self._add_pending_msg(match, msg)
 
                         self.logger.info(f"已保存 {line.strip()}")
                         self.logger.info(f"待处理单据: {list(self.msg_queue.queue)}")
@@ -131,15 +146,19 @@ class WeChatListener:
                         log_message(f"剩余待处理单据: {list(self.msg_queue.queue)}")
             time.sleep(5)
 
+    def _add_pending_msg(self, match, msg) -> str:
+        doc_type = "退货单" if "退货单" in msg.content else "发货单"
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        contact = '自己' if msg.sender == 'Self' else msg.sender
+        raw_msg = msg.content.replace('\n', ' ').replace(',', '，').strip()
+        line = f"{match},{doc_type},{timestamp},{contact},{raw_msg}\n"
+        pending_file = os.path.join(get_config().base.pending_path, get_config().base.pending_file_name)
+        with open(pending_file, "a", encoding="utf-8") as f:
+            f.write(line)
+        self.msg_queue.put(match)
+        return line
+
     def start(self, global_pause: threading.Event):
-        self._init_wechat()
-        last_no = self._get_last_no()
-        self.logger.info(f"最后处理的单据号: {last_no}")
-        history_msgs = self._init_history_msg(get_config().wechat_user[0], last_no)
-        self.logger.info(f"查找到的历史单据: {history_msgs}")
-        for msg in history_msgs:
-            self.msg_queue.put(msg)
-        self._init_listener()
         self._listen_loop(global_pause)
 
     def send_msg(self, content, who):

@@ -41,14 +41,8 @@ class AppController:
         self.root.wm_attributes("-topmost", True)
 
         self.log_text = ctk.CTkTextbox(self.root,  activate_scrollbars=False)
-        self.log_text.grid(row=0, column=0, columnspan=19, sticky="nsew")
+        self.log_text.grid(row=0, column=0, columnspan=23, sticky="nsew")
 
-        # create CTk scrollbar
-        # ctk_textbox_scrollbar = ctk.CTkScrollbar(self.root, command=self.log_text.yview)
-        # ctk_textbox_scrollbar.grid(row=0, column=1, sticky="ns")
-        #
-        # # connect textbox scroll event to CTk scrollbar
-        # self.log_text.configure(yscrollcommand=ctk_textbox_scrollbar.set)
         set_log_text_widget(self.log_text)
 
         self.status_var = ctk.StringVar(value="状态：未启动")
@@ -78,6 +72,8 @@ class AppController:
 
         # 微信消息队列
         self.msg_queue = DedupQueue()
+
+        # 加载未处理文件中的数据
         self.preload_messages()
 
         # 业务对象
@@ -159,9 +155,9 @@ class AppController:
         if self.paused:
             log_message("全部任务恢复")
             self.set_status("状态：运行中", "#81C784")
-            with self.msg_queue.mutex:
-                self.msg_queue.queue.clear()
-            self.preload_messages()
+            # with self.msg_queue.mutex:
+            #     self.msg_queue.queue.clear()
+            # self.preload_messages()
             self.global_pause.set()
         else:
             log_message("全部任务暂停")
@@ -170,7 +166,7 @@ class AppController:
         self.paused = not self.paused
 
     def run(self):
-        # self.start()
+        self.start()
         # self.refresh_queue_display()
         self.root.mainloop()
 
