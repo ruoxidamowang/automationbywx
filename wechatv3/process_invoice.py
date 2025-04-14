@@ -5,6 +5,7 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 
 import pyautogui
@@ -16,14 +17,28 @@ from wechatv3.gui_msg import log_message
 from wechatv3.logger_config import LoggerManager
 from .common import get_config
 
+class ResultType(str, Enum):
+    SUCCESS = '已完成'
+    FAIL = '操作失败'
 
 @dataclass
 class ProcessResult:
-    status: str  # 比如：'已完成'、'操作失败'、'跳过此单'
+    status: ResultType  # 比如：'已完成'、'操作失败'
     reason: Optional[str] = ''
+
+    @classmethod
+    def success(cls, reason: str = '') -> 'ProcessResult':
+        return cls(ResultType.SUCCESS, reason)
+
+    @classmethod
+    def fail(cls, reason: str) -> 'ProcessResult':
+        return cls(ResultType.FAIL, reason)
 
     def is_success(self) -> bool:
         return self.status == '已完成'
+
+    def __str__(self):
+        return f"[{self.status}] {self.reason}"
 
 
 class InvoiceProcessor:
@@ -265,7 +280,7 @@ class InvoiceAutomationWorker:
                 pyautogui.click(qdlocation.x, qdlocation.y)
                 log.info("提示未找到单据")
                 log_message(f"[{invoice_id}] 提示未找到单据")
-                return ProcessResult('已完成', '提示未找到单据')
+                return ProcessResult.success('提示未找到单据')
 
             # 找到单据 校验单据号是否一致
             log.info("开始校验单号")
@@ -275,7 +290,7 @@ class InvoiceAutomationWorker:
                 msg = f'单号不一致，搜索到的: {invoice_no} 需要的: {invoice_id}'
                 log.info(msg)
                 log_message(msg)
-                return ProcessResult('操作失败', msg)
+                return ProcessResult.fail(msg)
 
             # 找到是否为0 为0则可以打印
             zero_location = from_path('zero')
@@ -283,7 +298,7 @@ class InvoiceAutomationWorker:
             if zero_location is None and zero2_location is None:
                 log.info(f'跳过，单据左下角不为0')
                 log_message(f'跳过，单据[{invoice_id}]左下角不为0')
-                return ProcessResult('跳过此单', f'单据[{invoice_id}]左下角不为0')
+                return ProcessResult.success(f'单据[{invoice_id}]左下角不为0')
 
             def shuaxincunliang():
                 log.info(f"点击存量")
@@ -308,7 +323,7 @@ class InvoiceAutomationWorker:
                 if bcgs_location is None:
                     log.error(f"需要切换模板，根据'保存格式'定位，但是没找到'保存格式'")
                     log_message(f"[{invoice_id}] 需要切换模板，根据'保存格式'定位，但是没找到'保存格式'")
-                    return ProcessResult('操作失败', "需要切换模板，根据'保存格式'定位，但是没找到'保存格式'")
+                    return ProcessResult.fail("需要切换模板，根据'保存格式'定位，但是没找到'保存格式'")
                 else:
                     pyautogui.moveTo(bcgs_location.x, bcgs_location.y + 26)
                     pyautogui.click(bcgs_location.x, bcgs_location.y + 26)
@@ -318,7 +333,7 @@ class InvoiceAutomationWorker:
                     if zhixiang_location is None:
                         log.info(f"没找到 纸箱打印模板")
                         log_message(f"[{invoice_id}] 没找到 纸箱打印模板")
-                        return ProcessResult('操作失败', "没找到 纸箱打印模板")
+                        return ProcessResult.fail("没找到 纸箱打印模板")
                     else:
                         pyautogui.moveTo(zhixiang_location.x, zhixiang_location.y)
                         pyautogui.click(zhixiang_location.x, zhixiang_location.y)
@@ -337,7 +352,7 @@ class InvoiceAutomationWorker:
                 if fahuodan_location is None:
                     log.info(f"没找到 发货单打印模板")
                     log_message(f"[{invoice_id}] 没找到 发货打印模板")
-                    return ProcessResult('操作失败', "没找到 发货单打印模板")
+                    return ProcessResult.fail("没找到 发货单打印模板")
                 else:
                     pyautogui.moveTo(fahuodan_location.x, fahuodan_location.y)
                     pyautogui.click(fahuodan_location.x, fahuodan_location.y)
@@ -387,16 +402,16 @@ class InvoiceAutomationWorker:
                 self.wechat_client.send_msg(f'不能打印{invoice_id}', get_config().base.notify_user)
                 log.info("系统提示不能打印")
                 log_message(f"系统提示不能打印: {invoice_id}")
-                return ProcessResult('已完成', '系统提示不能打印')
+                return ProcessResult.success('系统提示不能打印')
 
         except Exception as e:
             log.error(f"脚本执行失败: {e}")
             log_message(f"脚本执行失败: {invoice_id}, 原因: {e}")
             self.wechat_client.send_msg(f'脚本执行失败，单号: {invoice_id}', get_config().base.notify_user)
-            return ProcessResult('操作失败', str(e))
+            return ProcessResult.fail(str(e))
         finally:
             self.invoice_logger = None
-        return ProcessResult('已完成', '')
+        return ProcessResult.success()
 
 
 if __name__ == '__main__':

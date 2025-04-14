@@ -35,10 +35,11 @@ class WeChatListener:
         scroll_count = 0
 
         while scroll_count < max_scroll_times:
-            self._wx.LoadMoreMessage()
+            if scroll_count > 0:
+                self._wx.LoadMoreMessage()
             msgs = self._wx.GetAllMessage()
 
-            for msg in msgs:
+            for msg in reversed(msgs):
                 matches = self._pattern.findall(msg.content)
                 for match in matches:
                     if match not in seen:
@@ -70,9 +71,8 @@ class WeChatListener:
         processed_file = os.path.join(get_config().base.processed_path, get_config().base.processed_file_name)
         with open(processed_file, 'r', encoding='utf-8-sig') as f:
             reader = csv.reader(f)
-            next(reader, None)  # 跳过表头
-            for row in reader:
-                if row and row[0].strip():
+            for row in reversed(reader[1:]):
+                if row and row[0].strip():  # 确保这一行存在并且第一个字段不为空
                     return row[0]
         return ''
 
@@ -133,7 +133,10 @@ class WeChatListener:
 
     def start(self, global_pause: threading.Event):
         self._init_wechat()
-        history_msgs = self._init_history_msg(get_config().wechat_user[0], self._get_last_no())
+        last_no = self._get_last_no()
+        self.logger.info(f"最后处理的单据号: {last_no}")
+        history_msgs = self._init_history_msg(get_config().wechat_user[0], last_no)
+        self.logger.info(f"查找到的历史单据: {history_msgs}")
         for msg in history_msgs:
             self.msg_queue.put(msg)
         self._init_listener()

@@ -1,6 +1,5 @@
 import csv
 import os
-import queue
 import threading
 from functools import partial
 
@@ -41,8 +40,8 @@ class AppController:
         self.root.geometry(f"{win_width}x{win_height}")
         self.root.wm_attributes("-topmost", True)
 
-        self.log_text = ctk.CTkTextbox(self.root, width=win_width, height=win_height, activate_scrollbars=False)
-        self.log_text.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.log_text = ctk.CTkTextbox(self.root,  activate_scrollbars=False)
+        self.log_text.grid(row=0, column=0, columnspan=19, sticky="nsew")
 
         # create CTk scrollbar
         # ctk_textbox_scrollbar = ctk.CTkScrollbar(self.root, command=self.log_text.yview)
@@ -53,8 +52,8 @@ class AppController:
         set_log_text_widget(self.log_text)
 
         self.status_var = ctk.StringVar(value="状态：未启动")
-        ctk.CTkLabel(self.root, textvariable=self.status_var, font=("Arial", 14)) \
-          .grid(row=1, column=0, columnspan=2)
+        self.status_label = ctk.CTkLabel(self.root, textvariable=self.status_var, justify=ctk.CENTER, text_color="#E57373",font=("微软雅黑", 14))
+        self.status_label.grid(row=1, column=0, columnspan=23, padx=5, pady=5)
 
         # self.queue_listbox = tk.Listbox(self.root, width=80, height=10)
         # self.queue_listbox.grid(row=2, column=0, padx=10, pady=5)
@@ -63,21 +62,19 @@ class AppController:
             self.root,
             text="暂停/恢复 (Ctrl+K)",
             font=("Arial", 12),
-            width=100,
             command=self.toggle_pause
-        ).grid(row=2, column=0, padx=10, pady=5, sticky="ew")
+        ).grid(row=2, column=0, columnspan=11, padx=(10, 5), pady=5, sticky="ew")
 
         ctk.CTkButton(
             self.root,
             text="查看当前待处理",
             font=("Arial", 12),
-            width=100,
             command=self.show_queue
-        ).grid(row=2, column=1, padx=10, pady=5, sticky="ew")
+        ).grid(row=2, column=12, columnspan=11, padx=(5,10), pady=5, sticky="ew")
 
         self.root.grid_rowconfigure(0, weight=1)
-        self.root.grid_columnconfigure(0, weight=1)
-        self.root.grid_columnconfigure(1, weight=1)
+        for i in range(24):
+            self.root.grid_columnconfigure(i, weight=1)
 
         # 微信消息队列
         self.msg_queue = DedupQueue()
@@ -154,22 +151,26 @@ class AppController:
         for t in self.threads:
             t.start()
 
+    def set_status(self, text: str, color: str):
+        self.status_var.set(text)
+        self.status_label.configure(text_color=color)
+
     def toggle_pause(self):
         if self.paused:
             log_message("全部任务恢复")
-            self.status_var.set("状态：运行中")
+            self.set_status("状态：运行中", "#81C784")
             with self.msg_queue.mutex:
                 self.msg_queue.queue.clear()
             self.preload_messages()
             self.global_pause.set()
         else:
             log_message("全部任务暂停")
-            self.status_var.set("状态：已暂停")
+            self.set_status("状态：已暂停", "#E57373")
             self.global_pause.clear()
         self.paused = not self.paused
 
     def run(self):
-        self.start()
+        # self.start()
         # self.refresh_queue_display()
         self.root.mainloop()
 
