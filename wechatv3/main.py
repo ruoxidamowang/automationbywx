@@ -8,6 +8,7 @@ import keyboard
 
 from wechatv3 import wechat_client
 from wechatv3.common import get_config
+from wechatv3.global_var import global_pause
 from wechatv3.gui_msg import set_log_text_widget, log_message
 from wechatv3.logger_config import LoggerManager
 from wechatv3.msg_unique_queue import DedupQueue
@@ -85,18 +86,10 @@ class AppController:
         self.keep_remote.clear()
 
         # 全局暂停
-        self.global_pause = threading.Event()
-        self.global_pause.clear()
+        global_pause.clear()
         self.paused = True
 
         self.threads = []
-
-    # def refresh_queue_display(self):
-    #     self.queue_listbox.delete(0, tk.END)  # 清空旧的显示
-    #     items = list(self.msg_queue.queue)  # 获取 queue 中的当前内容
-    #     for item in items:
-    #         self.queue_listbox.insert(tk.END, item)
-    #     self.root.after(2000, self.refresh_queue_display)  # 每 2 秒自动刷新
 
     def _start_hotkey(self):
         keyboard.add_hotkey('ctrl+k', lambda: self.root.after(0, self.toggle_pause) or None)
@@ -113,10 +106,17 @@ class AppController:
 
     def _init_file(self):
         pending_file = os.path.join(get_config().base.pending_path, get_config().base.pending_file_name)
-        os.makedirs(os.path.dirname(pending_file), exist_ok=True)
+        processed_file = os.path.join(get_config().base.processed_path, get_config().base.processed_file_name)
+
+        if not os.path.exists(processed_file):
+            os.makedirs(os.path.dirname(processed_file), exist_ok=True)
+            with open(processed_file, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.writer(f)
+                writer.writerow(["编号", "类型", "时间", "联系人", "状态", "原始消息", "原因"])
 
         # 写入表头（如果不存在）
         if not os.path.exists(pending_file):
+            os.makedirs(os.path.dirname(pending_file), exist_ok=True)
             with open(pending_file, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f)
                 writer.writerow(["编号", "类型", "时间", "联系人", "原始消息"])
@@ -140,9 +140,9 @@ class AppController:
 
     def start(self):
         self.threads = [
-            threading.Thread(target=lambda: self.listener.start(self.global_pause), daemon=True),
-            threading.Thread(target=lambda: self.processor.start(self.msg_queue, self.keep_remote, self.global_pause), daemon=True),
-            threading.Thread(target=lambda: self.processor.keep_remote_alive(self.keep_remote, self.global_pause), daemon=True),
+            threading.Thread(target=lambda: self.listener.start(), daemon=True),
+            threading.Thread(target=lambda: self.processor.start(self.msg_queue, self.keep_remote), daemon=True),
+            threading.Thread(target=lambda: self.processor.keep_remote_alive(self.keep_remote), daemon=True),
             threading.Thread(target=self._start_hotkey, daemon=True),
         ]
         for t in self.threads:
@@ -156,19 +156,15 @@ class AppController:
         if self.paused:
             log_message("全部任务恢复")
             self.set_status("状态：运行中", "#81C784")
-            # with self.msg_queue.mutex:
-            #     self.msg_queue.queue.clear()
-            # self.preload_messages()
-            self.global_pause.set()
+            global_pause.set()
         else:
             log_message("全部任务暂停")
             self.set_status("状态：已暂停", "#E57373")
-            self.global_pause.clear()
+            global_pause.clear()
         self.paused = not self.paused
 
     def run(self):
         self.start()
-        # self.refresh_queue_display()
         self.root.mainloop()
 
 if __name__ == '__main__':

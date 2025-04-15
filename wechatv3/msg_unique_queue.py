@@ -35,3 +35,4 @@ class DedupQueue(queue.Queue):
         """线程安全地获取队列当前所有元素的快照"""
         with self.mutex:
             return list(self.queue)
+

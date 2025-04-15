@@ -2,15 +2,15 @@ import csv
 import os
 import queue
 import re
-import threading
 import time
 from datetime import datetime
 
+from pywinauto import Application
 from wxauto import WeChat
 
+from wechatv3.common import get_config
 from wechatv3.logger_config import LoggerManager
 from .gui_msg import log_message
-from wechatv3.common import get_config
 
 
 class WeChatListener:
@@ -97,6 +97,14 @@ class WeChatListener:
     def _init_wechat(self):
         try:
             if self._wx is None:
+                try:
+                    for name in get_config().wechat_user:
+                        app = Application().connect(title=name)
+                        window = app.window(title=name)
+                        window.close()
+                except Exception:
+                    pass
+                time.sleep(0.5)
                 self._wx = WeChat()
                 self._wx.GetSessionList()
                 last_no = self._get_last_no()
@@ -114,7 +122,7 @@ class WeChatListener:
             self._wx.AddListenChat(name)
         log_message("微信实例已初始化并添加监听联系人")
 
-    def _listen_loop(self, global_pause: threading.Event):
+    def _listen_loop(self):
         listening = False
 
         self.logger.info("监听微信消息中...")
@@ -162,8 +170,8 @@ class WeChatListener:
         self.msg_queue.put(match)
         return line
 
-    def start(self, global_pause: threading.Event):
-        self._listen_loop(global_pause)
+    def start(self):
+        self._listen_loop()
 
     def send_msg(self, content, who):
         try:
