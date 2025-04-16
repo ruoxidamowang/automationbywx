@@ -1,6 +1,8 @@
 import csv
+import ctypes
 import os
 import threading
+from ctypes import wintypes
 from functools import partial
 
 import customtkinter as ctk
@@ -27,18 +29,21 @@ class AppController:
         win_width = 400
         win_height = 260
 
-        # 获取屏幕分辨率
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
+        user32 = ctypes.windll.user32
+
+        # 获取任务栏窗口句柄
+        hwnd = user32.FindWindowW("Shell_TrayWnd", None)
+
+        # 获取矩形
+        rect = wintypes.RECT()
+        user32.GetWindowRect(hwnd, ctypes.byref(rect))
 
         # 计算右下角位置
-        x = screen_width - win_width - 240
-        y = screen_height - win_height - 260
+        x = rect.right - win_width
+        y = rect.top - win_height
 
         # 设置窗口位置
         self.root.geometry(f"{win_width}x{win_height}+{x}+{y}")
-
-        self.root.geometry(f"{win_width}x{win_height}")
         self.root.wm_attributes("-topmost", True)
 
         self.log_text = ctk.CTkTextbox(self.root,  activate_scrollbars=False)

@@ -294,17 +294,15 @@ class InvoiceAutomationWorker:
             input_invoice_no()
 
             # 提示找不到则直接返回并记录
-            def find_zbd():
-                if from_path('zbd'):
-                    qdlocation = from_path('queding')
-                    pyautogui.moveTo(qdlocation.x, qdlocation.y)
-                    pyautogui.click(qdlocation.x, qdlocation.y)
-                    log.info("提示未找到单据")
-                    log_message(f"[{invoice_id}] 提示未找到单据")
-                    return ProcessResult.success('提示未找到单据')
-
             global_pause.wait()
-            find_zbd()
+            if from_path('zbd'):
+                qdlocation = from_path('queding')
+                pyautogui.moveTo(qdlocation.x, qdlocation.y)
+                pyautogui.click(qdlocation.x, qdlocation.y)
+                log.info("提示未找到单据")
+                log_message(f"[{invoice_id}] 提示未找到单据")
+                return ProcessResult.success('提示未找到单据')
+
 
             # 找到单据 校验单据号是否一致
             log.info("开始校验单号")
@@ -317,18 +315,16 @@ class InvoiceAutomationWorker:
                 return ProcessResult.fail(msg)
 
             # 找到是否为0 为0则可以打印
-            def find_zero():
-                zero_location = from_path('zero', confidence=0.84)
-                zero2_location = from_path('zero2', confidence=0.84)
-                if zero_location is None and zero2_location is None:
-                    log.info(f'跳过，单据左下角不为0')
-                    log_message(f'跳过，单据[{invoice_id}]左下角不为0')
-                    return ProcessResult.success(f'单据[{invoice_id}]左下角不为0')
-
             global_pause.wait()
-            find_zero()
+            zero_location = from_path('zero', confidence=0.84)
+            zero2_location = from_path('zero2', confidence=0.84)
+            if zero_location is None and zero2_location is None:
+                log.info(f'跳过，单据左下角不为0')
+                log_message(f'跳过，单据[{invoice_id}]左下角不为0')
+                return ProcessResult.success(f'单据[{invoice_id}]左下角不为0')
 
             def shuaxincunliang():
+                global_pause.wait()
                 log.info(f"点击存量")
                 # 点击 存量
                 cunliang_location = from_path('cunliang')
@@ -348,95 +344,87 @@ class InvoiceAutomationWorker:
                 log.info(f"刷新存量位置: {sx_cunliang_location.x}, {sx_cunliang_location.y}")
 
             # 找有没有件数字段 没有则勾选完模板再去打印
-            def find_jianshu():
-                jianshu_location = from_path('jianshu')
-                if jianshu_location is None:
-                    log.info(f"没有找到件数，切换模板")
-                    bcgs_location = from_path('baocungeshi')
-                    if bcgs_location is None:
-                        log.error(f"需要切换模板，根据'保存格式'定位，但是没找到'保存格式'")
-                        log_message(f"[{invoice_id}] 需要切换模板，根据'保存格式'定位，但是没找到'保存格式'")
-                        return ProcessResult.fail("需要切换模板，根据'保存格式'定位，但是没找到'保存格式'")
-                    else:
-                        pyautogui.moveTo(bcgs_location.x, bcgs_location.y + 26)
-                        pyautogui.click(bcgs_location.x, bcgs_location.y + 26)
-                        pyautogui.sleep(0.5)
-                        zhixiang_location = from_path('zhixiang')
-                        log.info(f"寻找纸箱打印模板")
-                        if zhixiang_location is None:
-                            log.info(f"没找到 纸箱打印模板")
-                            log_message(f"[{invoice_id}] 没找到 纸箱打印模板")
-                            return ProcessResult.fail("没找到 纸箱打印模板")
-                        else:
-                            pyautogui.moveTo(zhixiang_location.x, zhixiang_location.y)
-                            pyautogui.click(zhixiang_location.x, zhixiang_location.y)
-                            log.info(f"选择纸箱打印模板")
+            global_pause.wait()
+            jianshu_location = from_path('jianshu')
+            if jianshu_location is None:
+                log.info(f"没有找到件数，切换模板")
+                bcgs_location = from_path('baocungeshi')
+                if bcgs_location is None:
+                    log.error(f"需要切换模板，根据'保存格式'定位，但是没找到'保存格式'")
+                    log_message(f"[{invoice_id}] 需要切换模板，根据'保存格式'定位，但是没找到'保存格式'")
+                    return ProcessResult.fail("需要切换模板，根据'保存格式'定位，但是没找到'保存格式'")
                 else:
-                    # 点击存量刷新存量
-                    shuaxincunliang()
-
-                    log.info(f"找到件数")
-                    # 点击发货单打印模板
-                    bcgs_location = from_path('baocungeshi')
                     pyautogui.moveTo(bcgs_location.x, bcgs_location.y + 26)
                     pyautogui.click(bcgs_location.x, bcgs_location.y + 26)
-                    fahuodan_location = from_path('fahuodan')
-                    log.info(f"寻找发货单打印模板")
-                    if fahuodan_location is None:
-                        log.info(f"没找到 发货单打印模板")
-                        log_message(f"[{invoice_id}] 没找到 发货打印模板")
-                        return ProcessResult.fail("没找到 发货单打印模板")
+                    pyautogui.sleep(0.5)
+                    zhixiang_location = from_path('zhixiang')
+                    log.info(f"寻找纸箱打印模板")
+                    if zhixiang_location is None:
+                        log.info(f"没找到 纸箱打印模板")
+                        log_message(f"[{invoice_id}] 没找到 纸箱打印模板")
+                        return ProcessResult.fail("没找到 纸箱打印模板")
                     else:
-                        pyautogui.moveTo(fahuodan_location.x, fahuodan_location.y)
-                        pyautogui.click(fahuodan_location.x, fahuodan_location.y)
-                        log.info(f"选择发货单打印模板")
-                    pyautogui.moveTo(jianshu_location.x, jianshu_location.y)
+                        pyautogui.moveTo(zhixiang_location.x, zhixiang_location.y)
+                        pyautogui.click(zhixiang_location.x, zhixiang_location.y)
+                        log.info(f"选择纸箱打印模板")
+            else:
+                # 点击存量刷新存量
+                shuaxincunliang()
 
-            global_pause.wait()
-            find_jianshu()
+                log.info(f"找到件数")
+                # 点击发货单打印模板
+                bcgs_location = from_path('baocungeshi')
+                pyautogui.moveTo(bcgs_location.x, bcgs_location.y + 26)
+                pyautogui.click(bcgs_location.x, bcgs_location.y + 26)
+                fahuodan_location = from_path('fahuodan')
+                log.info(f"寻找发货单打印模板")
+                if fahuodan_location is None:
+                    log.info(f"没找到 发货单打印模板")
+                    log_message(f"[{invoice_id}] 没找到 发货打印模板")
+                    return ProcessResult.fail("没找到 发货单打印模板")
+                else:
+                    pyautogui.moveTo(fahuodan_location.x, fahuodan_location.y)
+                    pyautogui.click(fahuodan_location.x, fahuodan_location.y)
+                    log.info(f"选择发货单打印模板")
+                pyautogui.moveTo(jianshu_location.x, jianshu_location.y)
 
             # 点击 打印
-            def find_print():
-                print_location = from_path('print')
-                if print_location is not None:
-                    pyautogui.moveTo(print_location.x, print_location.y)
-                    pyautogui.click(print_location.x, print_location.y)
-
-                    # 点击不再弹出
-                    bztc_location = from_path('buzaitanchu')
-                    if bztc_location is not None:
-                        pyautogui.moveTo(bztc_location.x, bztc_location.y)
-                        pyautogui.click(bztc_location.x, bztc_location.y)
-                        # 点击 确定
-                        quedingdayin_location = from_path('quedingdayin')
-                        if quedingdayin_location is not None:
-                            pyautogui.moveTo(quedingdayin_location.x, quedingdayin_location.y)
-                            pyautogui.click(quedingdayin_location.x, quedingdayin_location.y)
-
             global_pause.wait()
-            find_print()
+            print_location = from_path('print')
+            if print_location is not None:
+                pyautogui.moveTo(print_location.x, print_location.y)
+                pyautogui.click(print_location.x, print_location.y)
+
+                # 点击不再弹出
+                bztc_location = from_path('buzaitanchu')
+                if bztc_location is not None:
+                    pyautogui.moveTo(bztc_location.x, bztc_location.y)
+                    pyautogui.click(bztc_location.x, bztc_location.y)
+                    # 点击 确定
+                    quedingdayin_location = from_path('quedingdayin')
+                    if quedingdayin_location is not None:
+                        pyautogui.moveTo(quedingdayin_location.x, quedingdayin_location.y)
+                        pyautogui.click(quedingdayin_location.x, quedingdayin_location.y)
+
 
             # 再次点击 打印 打印机执行打印操作
-            def dayin():
-                dayin_location = from_path('dayin', min_search_time=5)
-                if dayin_location is not None:
-                    pyautogui.moveTo(dayin_location.x, dayin_location.y)
-                    # 打印
-                    # pyautogui.click(dayin_location.x, dayin_location.y)
-                    # 循环等待打印窗口消失后再继续
-                    while True:
-                        dayin_location = from_path('dayin')
-                        if dayin_location is None:
-                            break
-                else:
-                    log.info(f"点击打印失败，没有找到打印按钮")
-                    log_message(f"点击打印失败，没有找到打印按钮")
-
             global_pause.wait()
-            dayin()
+            dayin_location = from_path('dayin', min_search_time=5)
+            if dayin_location is not None:
+                pyautogui.moveTo(dayin_location.x, dayin_location.y)
+                # 打印
+                pyautogui.click(dayin_location.x, dayin_location.y)
+                # 循环等待打印窗口消失后再继续
+                while True:
+                    dayin_location = from_path('dayin')
+                    if dayin_location is None:
+                        break
+            else:
+                log.info(f"点击打印失败，没有找到打印按钮")
+                log_message(f"点击打印失败，没有找到打印按钮")
 
-            # 不能打印的发微信通知 跳过此单
-            def find_bndy():
+                # 不能打印的发微信通知 跳过此单
+                global_pause.wait()
                 buneng_location = from_path('buneng')
                 if buneng_location is not None:
                     # 找到提示的确定按钮
@@ -449,13 +437,11 @@ class InvoiceAutomationWorker:
                     log_message(f"系统提示不能打印: {invoice_id}")
                     return ProcessResult.success('系统提示不能打印')
 
-            global_pause.wait()
-            find_bndy()
 
         except Exception as e:
             log.error(f"脚本执行失败: {e}")
             log_message(f"脚本执行失败: {invoice_id}, 原因: {e}")
-            # self.wechat_client.send_msg(f'脚本执行失败，单号: {invoice_id}', get_config().base.notify_user)
+            self.wechat_client.send_msg(f'脚本执行失败，单号: {invoice_id}', get_config().base.notify_user)
             return ProcessResult.fail(str(e))
         finally:
             self.invoice_logger = None
