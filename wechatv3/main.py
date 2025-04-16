@@ -8,7 +8,6 @@ from functools import partial
 import customtkinter as ctk
 import keyboard
 
-from wechatv3 import wechat_client
 from wechatv3.common import get_config
 from wechatv3.global_var import global_pause
 from wechatv3.gui_msg import set_log_text_widget, log_message
@@ -17,10 +16,10 @@ from wechatv3.msg_unique_queue import DedupQueue
 from wechatv3.process_invoice import InvoiceProcessor
 from wechatv3.wechat_client import WeChatListener
 
+logger = LoggerManager().get_logger()
 
 class AppController:
-    def __init__(self, logger_manager, wechat):
-        self.logger = logger_manager.get_logger()
+    def __init__(self):
         # GUI
         self.root = ctk.CTk()
         self.root.title('发货单自动化处理')
@@ -83,8 +82,8 @@ class AppController:
         self.preload_messages()
 
         # 业务对象
-        self.listener = WeChatListener(logger_manager, self.msg_queue)
-        self.processor = InvoiceProcessor(logger_manager, self.listener)
+        self.listener = WeChatListener(self.msg_queue)
+        self.processor = InvoiceProcessor(self.listener)
 
         # 远程保持连接事件
         self.keep_remote = threading.Event()
@@ -133,7 +132,7 @@ class AppController:
                 rows = [row for row in reader if row and any(field.strip() for field in row)]
                 first_column = [row[0] for row in rows if row]
                 log_message(f'读取到未执行的单据: {", ".join(first_column)}')
-                self.logger.info(f'读取到未执行的单据: {", ".join(first_column)}')
+                logger.info(f'读取到未执行的单据: {", ".join(first_column)}')
                 return first_column
 
     def show_queue(self):
@@ -173,5 +172,5 @@ class AppController:
         self.root.mainloop()
 
 if __name__ == '__main__':
-    app = AppController(LoggerManager(), wechat_client)
+    app = AppController()
     app.run()

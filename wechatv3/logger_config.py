@@ -13,7 +13,7 @@ class InvoiceLoggerAdapter(LoggerAdapter):
         self.invoice_id = invoice_id
 
     def process(self, msg, kwargs):
-        return f"[单据号: {self.invoice_id}] {msg}", kwargs
+        return f"[{self.invoice_id}] {msg}", kwargs
 
 
 class LoggerManager:

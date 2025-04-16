@@ -12,12 +12,14 @@ import pyautogui
 import pyperclip
 from pyautogui import ImageNotFoundException
 from pywinauto import Application
-from socks import method
 
 from wechatv3.global_var import global_pause
 from wechatv3.gui_msg import log_message
-from wechatv3.logger_config import LoggerManager
+from wechatv3.logger_config import LoggerManager, InvoiceLoggerAdapter
 from .common import get_config
+
+logger = LoggerManager().get_logger()
+_invoice_logger = None
 
 class ResultType(str, Enum):
     SUCCESS = '已完成'
@@ -45,21 +47,16 @@ class ProcessResult:
 
 
 class InvoiceProcessor:
-    def __init__(self, logger_manager: LoggerManager, wechat_client):
-        self._task = None
-        self._running = False
-        self.logger_manager = logger_manager
-        self.logger = logger_manager.logger
-        self.invoice_logger = None
+    def __init__(self, wechat_client):
         self.wechat_client = wechat_client
-        self.worker = InvoiceAutomationWorker(logger_manager, wechat_client)
+        self.worker = InvoiceAutomationWorker(wechat_client)
 
-        self.logger.info("任务实例初始化")
+        logger.info("任务实例初始化")
 
     def _read_pending_file(self):
         pending_file = os.path.join(get_config().base.pending_path, get_config().base.pending_file_name)
         if not os.path.exists(pending_file):
-            self.logger.error("找不到待处理文件")
+            logger.error("找不到待处理文件")
             log_message("找不到待处理文件")
             return None, None
 
@@ -67,14 +64,11 @@ class InvoiceProcessor:
         with open(pending_file, "r", encoding="utf-8-sig") as f:
             reader = csv.reader(f)
             rows = [row for row in reader if row and any(field.strip() for field in row)]
-            print(f"读取: {rows}")
             if len(rows) <= 1:
                 return None, None
 
             header = rows[0]
             data_rows = rows[1:]
-
-        print(header, data_rows)
 
         return header, data_rows
 
@@ -92,27 +86,26 @@ class InvoiceProcessor:
                 f.write(f"{invoice_id},{doc_type},{timestamp},{sender},{status},{raw_msg},{reason}\n")
 
     def _process_one_invoice(self):
+        global _invoice_logger
         result: ProcessResult | None = None
 
         header, data_rows = self._read_pending_file()
         if header is None or data_rows is None:
-            self.logger.info("没有待处理数据")
+            logger.info("没有待处理数据")
             log_message("没有待处理数据")
             return
 
         invoice_id, doc_type, timestamp, sender, raw_message = data_rows[0]
 
-        self.invoice_logger = self.logger_manager.get_invoice_logger(invoice_id)
+        _invoice_logger = LoggerManager().get_invoice_logger(invoice_id)
 
-        self.invoice_logger.info(f"开始处理单据: {invoice_id}")
+        _invoice_logger.info(f"开始处理单据: {invoice_id}")
         log_message(f"开始处理单据: {invoice_id}")
 
         try:
             start_time = time.time()
 
             result = self.worker.do_process_invoices(invoice_id, doc_type)
-
-            print(f"result: {result}")
 
             duration = int(time.time() - start_time)
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -138,7 +131,7 @@ class InvoiceProcessor:
             with open(result_file_path, "w", encoding="utf-8") as f:
                 f.write(result_text)
 
-            self.invoice_logger.info(f"结果保存在: {result_file_path}")
+            _invoice_logger.info(f"结果保存在: {result_file_path}")
             log_message(f"结果保存在: {result_file_path}")
 
             # 从 CSV 移除已处理项
@@ -147,16 +140,15 @@ class InvoiceProcessor:
             pending_path = os.path.join(get_config().base.pending_path, get_config().base.pending_file_name)
             with open(pending_path, "w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
-                print(f"写入: {remaining}")
                 writer.writerows(remaining)
 
             self.save_processed(invoice_id=invoice_id, doc_type=doc_type, sender=sender, raw_msg=raw_message,
                                 status=result.status.value, reason=result.reason)
 
-            self.invoice_logger.info(f"操作完成: {invoice_id}")
+            _invoice_logger.info(f"操作完成: {invoice_id}")
             log_message(f"操作完成: {invoice_id}")
         except Exception as e:
-            self.invoice_logger.error(f"单据操作失败: {invoice_id}，{e}")
+            _invoice_logger.error(f"单据操作失败: {invoice_id}，{e}")
             log_message(f"单据操作失败: {invoice_id}，{e}")
             self.save_processed(invoice_id=invoice_id, doc_type=doc_type, sender=sender, raw_msg=raw_message,
                                 status=result.status.value, reason=result.reason)
@@ -171,13 +163,13 @@ class InvoiceProcessor:
             time.sleep(0.5)
             if not starting:
                 log_message("自动处理任务已启动")
-                self.logger.info("自动处理任务已启动")
+                logger.info("自动处理任务已启动")
                 starting = True
 
             try:
                 data = msg_queue.get(timeout=3)
                 keep_remote.clear()
-                self.logger.info(f"开始处理单据：{data}")
+                logger.info(f"开始处理单据：{data}")
                 self._process_one_invoice()
             except queue.Empty:
                 if not keep_remote.is_set():
@@ -185,21 +177,21 @@ class InvoiceProcessor:
 
     def keep_remote_alive(self, keep_remote: threading.Event):
         def do_keep():
-            self.logger.info(f"无任务，远程保活中")
+            logger.info(f"无任务，远程保活中")
             log_message(f"无任务，远程保活中")
             self.worker.bring_window_to_front()
             searchx, searchy = self.worker.find_search_input()
             pyautogui.moveTo(searchx, searchy, 0.3)
             pyautogui.doubleClick(searchx, searchy)
             pyautogui.press('backspace')
-            self.logger.info(f"执行防断连点击操作，位置: {searchx}, {searchy}")
+            logger.info(f"执行防断连点击操作，位置: {searchx}, {searchy}")
 
         while True:
             try:
                 global_pause.wait()
                 keep_remote.wait()
                 if not keep_remote.is_set():
-                    self.logger.info(f"有任务，远程保活停止")
+                    logger.info(f"有任务，远程保活停止")
                     log_message(f"有任务，远程保活停止")
                 do_keep()
             except Exception as e:
@@ -208,10 +200,7 @@ class InvoiceProcessor:
 
 
 class InvoiceAutomationWorker:
-    def __init__(self, logger_manager, wechat_client):
-        self.logger_manager = logger_manager
-        self.logger = logger_manager.get_logger()
-        self.invoice_logger = None
+    def __init__(self, wechat_client):
         self.wechat_client = wechat_client
         self.image_paths = get_config().paths  # 字典形式管理路径
 
@@ -224,7 +213,7 @@ class InvoiceAutomationWorker:
             return pyautogui.locateCenterOnScreen(image_path, confidence=confidence, grayscale=grayscale,
                                                   minSearchTime=min_search_time)
         except ImageNotFoundException:
-            self.logger.error(f"未找到元素: {image_path}")
+            logger.error(f"未找到元素: {image_path}")
             return None
 
     # 将远程桌面置于顶层
@@ -234,9 +223,9 @@ class InvoiceAutomationWorker:
             app = Application().connect(title=window_title)
             window = app.window(title=window_title)
             window.set_focus()  # 设置窗口为最上层
-            self.logger.info(f"窗口 '{window_title}' 已被设置为最上层")
+            logger.info(f"窗口 '{window_title}' 已被设置为最上层")
         except Exception as e:
-            self.logger.error(f"找不到窗口 '{window_title}'")
+            logger.error(f"找不到窗口 '{window_title}'")
             log_message(f"找不到窗口 '{window_title}'")
             raise e
 
@@ -251,28 +240,28 @@ class InvoiceAutomationWorker:
     def valid_invoice_id(self, invoice_id):
         global_pause.wait()
         fhdhx, fhdhy = self.safe_locate_center('fahuodanhao')
-        self.invoice_logger.info(f"发货单号的位置: {fhdhx}, {fhdhy}")
+        _invoice_logger.info(f"发货单号的位置: {fhdhx}, {fhdhy}")
         pyautogui.moveTo(fhdhx + 80, fhdhy, 0.5)
         pyautogui.sleep(2)
-        pyautogui.doubleClick(fhdhx + 80, fhdhy)
+        pyautogui.doubleClick(fhdhx + 80, fhdhy, interval=0.1)
         pyautogui.sleep(0.5)
-        self.invoice_logger.info(f"复制前的值: {pyperclip.paste()}")
+        _invoice_logger.info(f"复制前的值: {pyperclip.paste()}")
         log_message(f"复制前的值: {pyperclip.paste()}")
         pyautogui.hotkey('ctrl', 'c')
-        self.invoice_logger.info(f"复制后的值: {pyperclip.paste()}")
+        _invoice_logger.info(f"复制后的值: {pyperclip.paste()}")
         log_message(f"复制后的值: {pyperclip.paste()}")
         time.sleep(0.5)
-        pyautogui.doubleClick(fhdhx + 80, fhdhy)
+        pyautogui.doubleClick(fhdhx + 80, fhdhy, interval=0.1)
         pyautogui.hotkey('ctrl', 'c')
         value = pyperclip.paste()
         return value == invoice_id, value
 
     def do_process_invoices(self, invoice_id, doc_type) -> ProcessResult:
+        global _invoice_logger
         global_pause.wait()
-        if self.invoice_logger is None:
-            self.invoice_logger = self.logger_manager.get_invoice_logger(invoice_id)
+        _invoice_logger = LoggerManager().get_invoice_logger(invoice_id)
         from_path = self.safe_locate_center
-        log = self.invoice_logger
+        log = _invoice_logger
         log.info(f'单据类型: {doc_type}')
         log_message(f'单据: {invoice_id} 类型: {doc_type}')
         try:
@@ -282,7 +271,7 @@ class InvoiceAutomationWorker:
             searchx, searchy = self.find_search_input()
 
             def input_invoice_no():
-                pyautogui.doubleClick(searchx, searchy)
+                pyautogui.doubleClick(searchx, searchy, interval=0.1)
                 pyautogui.sleep(0.5)
                 pyautogui.keyDown('backspace')
                 time.sleep(3)
@@ -413,7 +402,7 @@ class InvoiceAutomationWorker:
             if dayin_location is not None:
                 pyautogui.moveTo(dayin_location.x, dayin_location.y)
                 # 打印
-                pyautogui.click(dayin_location.x, dayin_location.y)
+                # pyautogui.click(dayin_location.x, dayin_location.y)
                 # 循环等待打印窗口消失后再继续
                 while True:
                     dayin_location = from_path('dayin')
@@ -441,10 +430,8 @@ class InvoiceAutomationWorker:
         except Exception as e:
             log.error(f"脚本执行失败: {e}")
             log_message(f"脚本执行失败: {invoice_id}, 原因: {e}")
-            self.wechat_client.send_msg(f'脚本执行失败，单号: {invoice_id}', get_config().base.notify_user)
+            # self.wechat_client.send_msg(f'脚本执行失败，单号: {invoice_id}', get_config().base.notify_user)
             return ProcessResult.fail(str(e))
-        finally:
-            self.invoice_logger = None
         return ProcessResult.success()
 
 if __name__ == '__main__':

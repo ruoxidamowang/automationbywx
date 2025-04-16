@@ -12,12 +12,12 @@ from wechatv3.common import get_config
 from wechatv3.logger_config import LoggerManager
 from .gui_msg import log_message
 
+logger = LoggerManager().get_logger()
 
 class WeChatListener:
-    def __init__(self, logger_manager: LoggerManager, msg_queue: queue.Queue):
+    def __init__(self, msg_queue: queue.Queue):
         self._wx: WeChat | None = None
         self.msg_queue = msg_queue
-        self.logger = logger_manager.get_logger()
         self._pattern = re.compile(r"(FHD\d{8})")
         self.finished_data = WeChatListener._init_finished_data()
         self._init_wechat()
@@ -45,7 +45,7 @@ class WeChatListener:
                     in_matches = self._pattern.findall(in_msg.content)
                     for in_match in in_matches:
                         if find_str == in_match:
-                            self.logger.info(f"符合的历史单据: {history}")
+                            logger.info(f"符合的历史单据: {history}")
                             return history
                         if in_match not in seen:
                             seen.add(in_match)
@@ -57,14 +57,14 @@ class WeChatListener:
             matches = self._pattern.findall(msg.content)
             for match in matches:
                 if match in self.msg_queue:
-                    self.logger.info(f"匹配到单号: [{match}] 已在待处理，跳过")
+                    logger.info(f"匹配到单号: [{match}] 已在待处理，跳过")
                     continue
                 if match in list(item[0] for item in self.finished_data):
-                    self.logger.info(f"匹配到单号: [{match}] 单据已处理过，跳过")
+                    logger.info(f"匹配到单号: [{match}] 单据已处理过，跳过")
                     continue
                 line = self._add_pending_msg(match, msg)
 
-                self.logger.info(f"已保存 {line.strip()}")
+                logger.info(f"已保存 {line.strip()}")
                 log_message(f"已保存 {line.strip()}")
 
     @staticmethod
@@ -108,7 +108,7 @@ class WeChatListener:
                 self._wx = WeChat()
                 self._wx.GetSessionList()
                 last_no = self._get_last_no()
-                self.logger.info(f"最后处理的单据号: {last_no}")
+                logger.info(f"最后处理的单据号: {last_no}")
                 for name in get_config().wechat_user:
                     self._init_history_msg(name, last_no)
                 log_message("已添加未处理历史消息")
@@ -125,7 +125,7 @@ class WeChatListener:
     def _listen_loop(self):
         listening = False
 
-        self.logger.info("监听微信消息中...")
+        logger.info("监听微信消息中...")
         log_message("监听微信消息中...")
 
         """内部监听循环，自动写入数据文件"""
@@ -133,7 +133,7 @@ class WeChatListener:
             # global_pause.wait()
 
             # if not listening:
-            #     self.logger.info("监听微信消息中...")
+            #     logger.info("监听微信消息中...")
             #     log_message("监听微信消息中...")
             #     listening = True  # 已打印，设置为正在监听状态
 
@@ -142,18 +142,18 @@ class WeChatListener:
             for chat in msgs:
                 for msg in msgs.get(chat, []):
                     matches = self._pattern.findall(msg.content)
-                    self.logger.info(f"接收到微信消息: {msg.sender} {msg.content}")
+                    logger.info(f"接收到微信消息: {msg.sender} {msg.content}")
                     for match in matches:
                         if match in self.msg_queue:
-                            self.logger.info(f"匹配到单号: [{match}] 已在待处理，跳过")
+                            logger.debug(f"匹配到单号: [{match}] 已在待处理，跳过")
                             continue
                         if match in list(item[0] for item in self.finished_data):
-                            self.logger.info(f"匹配到单号: [{match}] 单据已处理过，跳过")
+                            logger.debug(f"匹配到单号: [{match}] 单据已处理过，跳过")
                             continue
                         line = self._add_pending_msg(match, msg)
 
-                        self.logger.info(f"已保存 {line.strip()}")
-                        self.logger.info(f"待处理单据: {list(self.msg_queue.queue)}")
+                        logger.info(f"已保存 {line.strip()}")
+                        logger.debug(f"待处理单据: {list(self.msg_queue.queue)}")
                         log_message(f"已保存 {line.strip()}")
                         log_message(f"剩余待处理单据: {list(self.msg_queue.queue)}")
             time.sleep(5)
