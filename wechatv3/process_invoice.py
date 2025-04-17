@@ -287,7 +287,7 @@ class InvoiceAutomationWorker:
                 pyautogui.doubleClick(searchx, searchy, interval=0.1)
                 pyautogui.sleep(0.2)
                 pyautogui.press('backspace', presses=10, interval=0.1)
-                pyautogui.write(invoice_id, 0.15)  # 输入单号
+                pyautogui.write(invoice_id, 0.05)  # 输入单号
                 pyautogui.press('enter')
 
             global_pause.wait()
@@ -295,8 +295,8 @@ class InvoiceAutomationWorker:
 
             # 提示找不到则直接返回并记录
             global_pause.wait()
-            if self._find_point('zbd', retry_times=1):
-                qdlocation = from_path('queding')
+            if self._find_point('zbd', retry_times=3):
+                qdlocation = self._find_point('queding')
                 # pyautogui.moveTo(qdlocation.x, qdlocation.y)
                 pyautogui.click(qdlocation.x, qdlocation.y)
                 log.info("提示未找到单据")
@@ -335,7 +335,7 @@ class InvoiceAutomationWorker:
 
                 log.info(f"点击刷新存量")
                 # 点击 刷新表现体存量
-                sx_cunliang_location = self._find_point('shuaxincunliang')
+                sx_cunliang_location = self._find_point('shuaxincunliang', retry_times=10)
                 # pyautogui.moveTo(sx_cunliang_location.x, sx_cunliang_location.y)
                 pyautogui.click(sx_cunliang_location.x, sx_cunliang_location.y)
 
@@ -391,8 +391,19 @@ class InvoiceAutomationWorker:
                 # pyautogui.moveTo(print_location.x, print_location.y)
                 pyautogui.click(print_location.x, print_location.y)
 
+                # 再次点击 打印 打印机执行打印操作
+                dayin_location = self._find_point('dayin', 2)
+                if dayin_location is not None:
+                    # 打印
+                    pyautogui.click(dayin_location.x, dayin_location.y)
+                    # 循环等待打印窗口消失后再继续
+                    while True:
+                        dayin_location = from_path('dayin', min_search_time=0)
+                        if dayin_location is None:
+                            return ProcessResult.success('已打印')
+
                 # 点击不再弹出
-                bztc_location = self._find_point('buzaitanchu', retry_times=2)
+                bztc_location = self._find_point('buzaitanchu', retry_times=1)
                 if bztc_location is not None:
                     # pyautogui.moveTo(bztc_location.x, bztc_location.y)
                     pyautogui.click(bztc_location.x, bztc_location.y)
