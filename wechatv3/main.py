@@ -39,7 +39,7 @@ class AppController:
 
         # 计算右下角位置
         x = rect.right - win_width
-        y = rect.top - win_height
+        y = rect.top - win_height - 34
 
         # 设置窗口位置
         self.root.geometry(f"{win_width}x{win_height}+{x}+{y}")
