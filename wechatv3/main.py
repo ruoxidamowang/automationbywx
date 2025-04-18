@@ -81,6 +81,9 @@ class AppController:
         # 加载未处理文件中的数据
         self.preload_messages()
 
+        # 初始化已处理文件
+        self._init_processed_file()
+
         # 业务对象
         self.listener = WeChatListener(self.msg_queue)
         self.processor = InvoiceProcessor(self.listener)
@@ -105,18 +108,12 @@ class AppController:
         self.root.after(0, partial(func, *args))
 
     def preload_messages(self):
-        for item in self._init_file():
+        for item in self._init_pending_file():
             self.msg_queue.put(item)
 
-    def _init_file(self):
+    @staticmethod
+    def _init_pending_file():
         pending_file = os.path.join(get_config().base.pending_path, get_config().base.pending_file_name)
-        processed_file = os.path.join(get_config().base.processed_path, get_config().base.processed_file_name)
-
-        if not os.path.exists(processed_file):
-            os.makedirs(os.path.dirname(processed_file), exist_ok=True)
-            with open(processed_file, 'w', newline='', encoding='utf-8-sig') as f:
-                writer = csv.writer(f)
-                writer.writerow(["编号", "类型", "时间", "联系人", "状态", "原始消息", "原因"])
 
         # 写入表头（如果不存在）
         if not os.path.exists(pending_file):
@@ -134,6 +131,30 @@ class AppController:
                 log_message(f'读取到未执行的单据: {", ".join(first_column)}')
                 logger.info(f'读取到未执行的单据: {", ".join(first_column)}')
                 return first_column
+
+    @staticmethod
+    def _init_processed_file():
+        processed_file = os.path.join(get_config().base.processed_path, get_config().base.processed_file_name)
+
+        if not os.path.exists(processed_file):
+            os.makedirs(os.path.dirname(processed_file), exist_ok=True)
+            with open(processed_file, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.writer(f)
+                writer.writerow(["编号", "类型", "时间", "联系人", "状态", "原始消息", "原因"])
+        else:
+            # 清理已处理文件的历史数据
+            # 一次性读入
+            with open(processed_file, 'r', newline='', encoding='utf-8') as f:
+                rows = list(csv.reader(f))
+
+            # 提取所需行
+            if len(rows) > 201:
+                rows = [rows[0]] + rows[-200:]
+
+            # 重新写入
+            with open(processed_file, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerows(rows)
 
     def show_queue(self):
         items = self.msg_queue.snapshot()
