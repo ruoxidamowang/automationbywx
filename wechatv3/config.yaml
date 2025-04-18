@@ -24,7 +24,7 @@ paths:
 base:
   remote_win_name: 'ufo.xiejin.com:2012 - 远程桌面连接' # 远程桌面的名称
   notify_user: '初代' # 单据不能打印提示人
-  sleep_time: 2 # 处理完一个单据后的等待时间
+  sleep_time: 0 # 处理完一个单据后的等待时间
   file_base_path: '' # 默认为应用当前目录 ex: D:\\path\\to
   log_path: '日志'
   pending_path: '单据数据'

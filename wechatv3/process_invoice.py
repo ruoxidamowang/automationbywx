@@ -206,15 +206,6 @@ class InvoiceAutomationWorker:
 
         pyautogui.FAILSAFE = False
 
-    def safe_locate_center(self, image_key, confidence=0.9, grayscale=False, min_search_time=10):
-        image_path = self.image_paths.get(image_key)
-        try:
-            return pyautogui.locateCenterOnScreen(image_path, confidence=confidence, grayscale=grayscale,
-                                                  minSearchTime=min_search_time)
-        except ImageNotFoundException:
-            logger.error(f"未找到元素: {image_path}")
-            return None
-
     # 将远程桌面置于顶层
     def bring_window_to_front(self, window_title=get_config().base.get('remote_win_name')):
         global_pause.wait()
@@ -228,15 +219,26 @@ class InvoiceAutomationWorker:
             log_message(f"找不到窗口 '{window_title}'")
             raise e
 
+
+    def safe_locate_center(self, image_key, confidence=0.9, grayscale=False, min_search_time=10):
+        image_path = self.image_paths.get(image_key)
+        try:
+            return pyautogui.locateCenterOnScreen(image_path, confidence=confidence, grayscale=grayscale,
+                                                  minSearchTime=min_search_time)
+        except ImageNotFoundException:
+            logger.error(f"未找到元素: {image_path}")
+            return None
+
+
     '''
         每隔半秒搜索一次图片位置，搜索到就返回
     '''
-    def _find_point(self, image_key: str, retry_times = 5):
+    def _find_point(self, image_key: str, retry_times = 5, wait_time=0.5, confidence=0.9):
         for retry in range(retry_times):
             global_pause.wait()
-            img_location = self.safe_locate_center(image_key, min_search_time=0)
+            img_location = self.safe_locate_center(image_key, min_search_time=0, confidence=confidence)
             if img_location is None:
-                time.sleep(0.5)
+                time.sleep(wait_time)
                 continue
             else:
                 return img_location
@@ -252,14 +254,14 @@ class InvoiceAutomationWorker:
         global_pause.wait()
         fhdhx, fhdhy = self._find_point('fahuodanhao', retry_times=6)
         _invoice_logger.info(f"发货单号的位置: {fhdhx}, {fhdhy}")
-        old_val = '000'
+        old_val = pyperclip.paste()
         for i in range(20):
             pyautogui.moveTo(fhdhx + 80, fhdhy, 0.5)
             pyautogui.doubleClick(fhdhx + 80, fhdhy, interval=0.1)
             pyautogui.hotkey('ctrl', 'c')
             new_val = pyperclip.paste()
             _invoice_logger.info(f"复制结果: {old_val} -> {new_val}")
-            _invoice_logger.info(f"复制结果: {old_val} -> {new_val}")
+            log_message(f"复制结果: {old_val} -> {new_val}")
             if old_val == new_val:
                 time.sleep(0.2)
                 continue
@@ -287,7 +289,7 @@ class InvoiceAutomationWorker:
                 pyautogui.doubleClick(searchx, searchy, interval=0.1)
                 pyautogui.sleep(0.2)
                 pyautogui.press('backspace', presses=10, interval=0.1)
-                pyautogui.write(invoice_id, 0.05)  # 输入单号
+                pyautogui.write(invoice_id, 0.1)  # 输入单号
                 pyautogui.press('enter')
 
             global_pause.wait()
@@ -316,8 +318,13 @@ class InvoiceAutomationWorker:
 
             # 找到是否为0 为0则可以打印
             global_pause.wait()
+            # 同时查找两张图 每0.1秒查找一次 尝试20次 找到立刻返回
+            log_message("开始找左下角0")
+            start = time.time()
             zero_location = from_path('zero', confidence=0.84, min_search_time=0)
             zero2_location = from_path('zero2', confidence=0.84, min_search_time=0)
+            log.info(f'左下角0的位置: {zero_location}, {zero2_location}, 耗费时间: {time.time() - start}')
+            log_message(f'左下角0的位置: {zero_location}, {zero2_location}, 耗费时间: {time.time() - start}')
             if zero_location is None and zero2_location is None:
                 log.info(f'跳过，单据左下角不为0')
                 log_message(f'跳过，单据[{invoice_id}]左下角不为0')
@@ -325,6 +332,7 @@ class InvoiceAutomationWorker:
 
             def shuaxincunliang():
                 global_pause.wait()
+                log_message("开始刷新存量")
                 log.info(f"点击存量")
                 # 点击 存量
                 cunliang_location = self._find_point('cunliang')
@@ -343,9 +351,11 @@ class InvoiceAutomationWorker:
 
             # 找有没有件数字段 没有则勾选完模板再去打印
             global_pause.wait()
-            jianshu_location = self._find_point('jianshu', retry_times=1)
+            log_message("开始找件数")
+            jianshu_location = self._find_point('jianshu', retry_times=2)
             if jianshu_location is None:
                 log.info(f"没有找到件数，切换模板")
+                log_message(f"没有找到件数，切换模板")
                 bcgs_location = self._find_point('baocungeshi', retry_times=2)
                 if bcgs_location is None:
                     log.error(f"需要切换模板，根据'保存格式'定位，但是没找到'保存格式'")
@@ -364,11 +374,13 @@ class InvoiceAutomationWorker:
                         # pyautogui.moveTo(zhixiang_location.x, zhixiang_location.y)
                         pyautogui.click(zhixiang_location.x, zhixiang_location.y)
                         log.info(f"选择纸箱打印模板")
+                        log_message(f"选择纸箱打印模板")
             else:
                 # 点击存量刷新存量
                 shuaxincunliang()
 
                 log.info(f"找到件数")
+                log_message(f"找到件数")
                 # 点击发货单打印模板
                 bcgs_location = self._find_point('baocungeshi', retry_times=2)
                 # pyautogui.moveTo(bcgs_location.x, bcgs_location.y + 26)
@@ -383,24 +395,30 @@ class InvoiceAutomationWorker:
                     # pyautogui.moveTo(fahuodan_location.x, fahuodan_location.y)
                     pyautogui.click(fahuodan_location.x, fahuodan_location.y)
                     log.info(f"选择发货单打印模板")
+                    log_message(f"选择发货单打印模板")
 
             # 点击 打印
             global_pause.wait()
+            log_message("点击打印")
             print_location = self._find_point('print', retry_times=2)
             if print_location is not None:
                 # pyautogui.moveTo(print_location.x, print_location.y)
                 pyautogui.click(print_location.x, print_location.y)
 
                 # 再次点击 打印 打印机执行打印操作
-                dayin_location = self._find_point('dayin', 2)
+                dayin_location = self._find_point('dayin', 5)
                 if dayin_location is not None:
+                    # pyautogui.moveTo(dayin_location.x, dayin_location.y)
                     # 打印
-                    pyautogui.click(dayin_location.x, dayin_location.y)
+                    # pyautogui.click(dayin_location.x, dayin_location.y)
                     # 循环等待打印窗口消失后再继续
                     while True:
                         dayin_location = from_path('dayin', min_search_time=0)
                         if dayin_location is None:
                             return ProcessResult.success('已打印')
+                        else:
+                            # 找一张图片大约花费在 0.3 - 0.4 这里每次休眠0.2节省cpu性能
+                            time.sleep(0.2)
 
                 # 点击不再弹出
                 bztc_location = self._find_point('buzaitanchu', retry_times=1)
@@ -425,6 +443,9 @@ class InvoiceAutomationWorker:
                     dayin_location = from_path('dayin', min_search_time=0)
                     if dayin_location is None:
                         return ProcessResult.success('已打印')
+                    else:
+                        # 找一张图片大约花费在 0.3 - 0.4 这里每次休眠0.2节省cpu性能
+                        time.sleep(0.2)
             else:
                 log.info(f"点击打印失败，没有找到打印按钮")
                 log_message(f"点击打印失败，没有找到打印按钮")
